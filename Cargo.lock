@@ -557,6 +557,7 @@ checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
+ "rand_core 0.6.4",
  "serde",
  "sha2",
  "subtle",
@@ -591,9 +592,20 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 name = "erbium-core"
 version = "0.1.0"
 dependencies = [
+ "erbium-crypto",
+ "hex",
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "erbium-crypto"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "hex",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -602,7 +614,9 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "erbium-core",
+ "erbium-crypto",
  "erbium-p2p",
+ "hex",
  "libp2p",
  "serde",
  "serde_json",
@@ -902,6 +916,12 @@ name = "hermit-abi"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
+
+[[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hex_fmt"

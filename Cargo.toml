@@ -6,4 +6,5 @@ members = [
     "p2p",
     "consensus",
     "vm",
+    "crypto"
 ]
