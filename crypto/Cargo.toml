@@ -1,0 +1,10 @@
+[package]
+name = "erbium-crypto"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# The 'rand_core' feature is required to enable key generation functions
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+rand = "0.8"
+hex = "0.4"
