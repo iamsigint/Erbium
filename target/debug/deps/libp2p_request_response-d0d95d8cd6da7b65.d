@@ -1,0 +1,8 @@
+C:\Users\robert.bispo\Desktop\Projeto - Erbium\erbium\target\debug\deps\libp2p_request_response-d0d95d8cd6da7b65.d: C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\lib.rs C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\codec.rs C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\handler.rs C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\handler\protocol.rs
+
+C:\Users\robert.bispo\Desktop\Projeto - Erbium\erbium\target\debug\deps\liblibp2p_request_response-d0d95d8cd6da7b65.rmeta: C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\lib.rs C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\codec.rs C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\handler.rs C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\handler\protocol.rs
+
+C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\lib.rs:
+C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\codec.rs:
+C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\handler.rs:
+C:\Users\robert.bispo\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\libp2p-request-response-0.26.3\src\handler\protocol.rs:
