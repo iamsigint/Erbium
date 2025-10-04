@@ -5,10 +5,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/SIGINT-erbium/erbium/stargazers"><img src="https://img.shields.io/github/stars/SIGINT-erbium/erbium?style=social" alt="GitHub stars"></a>
-  <a href="https://github.com/SIGINT-erbium/erbium/network/members"><img src="https://img.shields.io/github/forks/SIGINT-erbium/erbium?style=social" alt="GitHub forks"></a>
-  <a href="https://github.com/SIGINT-erbium/erbium/issues"><img src="https://img.shields.io/github/issues/SIGINT-erbium/erbium" alt="GitHub issues"></a>
-  <a href="https://github.com/SIGINT-erbium/erbium/actions/workflows/rust.yml"><img src="https://github.com/SIGINT-erbium/erbium/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
+  <a href="https://github.com/iamsigint/erbium/stargazers"><img src="https://img.shields.io/github/stars/iamsigint/erbium?style=social" alt="GitHub stars"></a>
+  <a href="https://github.com/iamsigint/erbium/network/members"><img src="https://img.shields.io/github/forks/iamsigint/erbium?style=social" alt="GitHub forks"></a>
+  <a href="https://github.com/iamsigint/erbium/issues"><img src="https://img.shields.io/github/issues/iamsigint/erbium" alt="GitHub issues"></a>
+  <a href="https://github.com/iamsigint/erbium/actions/workflows/rust.yml"><img src="https://github.com/iamsigint/erbium/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/security-monitored-brightgreen?logo=shield" alt="Security Badge"></a>
   <a href="#"><img src="https://img.shields.io/badge/PRs-welcome-blue" alt="PRs Welcome"></a>
