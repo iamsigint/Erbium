@@ -1,0 +1,6 @@
+# config/network.toml
+
+# A list of initial peers our node will try to connect to on startup.
+bootstrap_nodes = [
+    "127.0.0.1:9999",
+]
