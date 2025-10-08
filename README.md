@@ -32,17 +32,17 @@ Erbium-node/
 │   │   ├── executor.rs
 │   │   └── std_lib.rs
 │   ├── p2p/
-│   │   ├── mod.rs                   ✅ ATUALIZADO
+│   │   ├── mod.rs                   ✅ UPDATED
 │   │   ├── peer.rs
-│   │   ├── message.rs               ✅ ATUALIZADO
-│   │   ├── service.rs               ✅ ATUALIZADO
-│   │   ├── sync.rs                  ✅ NOVO
+│   │   ├── message.rs               ✅ UPDATED
+│   │   ├── service.rs               ✅ UPDATED
+│   │   ├── sync.rs                  ✅ NEW
 │   │   └── discovery.rs
 │   ├── storage/
 │   │   ├── mod.rs
 │   │   ├── rocksdb.rs
 │   │   ├── memory.rs
-│   │   └── db.rs                    ✅ ATUALIZADO
+│   │   └── db.rs                    ✅ UPDATED
 │   ├── rpc/
 │   │   ├── mod.rs
 │   │   ├── http.rs
@@ -51,7 +51,7 @@ Erbium-node/
 │   ├── node/
 │   │   ├── mod.rs
 │   │   ├── config.rs
-│   │   ├── runner.rs                ✅ ATUALIZADO
+│   │   ├── runner.rs                ✅ UPDATED
 │   │   └── telemetry.rs
 │   ├── tests/
 │   │   ├── test_consensus.rs
