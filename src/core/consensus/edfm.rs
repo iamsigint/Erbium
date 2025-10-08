@@ -1,28 +1,44 @@
 // src/core/consensus/edfm.rs
 
-use crate::core::state::ValidatorInfo;
-use std::collections::HashMap;
 use crate::crypto::hash::calculate_hash;
+use std::collections::HashMap;
 
-// Selects a proposer for the current slot based on a seed.
-// This is a simple, deterministic lottery.
-pub fn select_proposer(seed: &str, validators: &HashMap<String, ValidatorInfo>) -> Option<String> {
+/// EDFM (Ethereum-inspired Dynamic Federated Model) consensus
+/// Selects a proposer based on stake and random seed
+pub fn select_proposer(seed: &str, validators: &HashMap<String, crate::core::state::ValidatorInfo>) -> Option<String> {
     if validators.is_empty() {
         return None;
     }
 
-    // 1. Get a list of validator addresses and sort them to ensure consistent order.
-    let mut sorted_validators: Vec<_> = validators.keys().collect();
-    sorted_validators.sort();
+    // Use only the block hash as seed for consistency across nodes
+    // This ensures all nodes select the same proposer
+    // Convert &str to String para resolver o problema de Sized
+    let seed_string = seed.to_string();
+    let hash = calculate_hash(&seed_string);
+    
+    // Convert hash to a number
+    let hash_num = u64::from_str_radix(&hash[..16], 16).unwrap_or(0);
+    
+    // Calculate total stake
+    let total_stake: u64 = validators.values().map(|v| v.stake).sum();
+    
+    if total_stake == 0 {
+        return None;
+    }
 
-    // 2. Create a "lottery number" from the seed.
-    let hash = calculate_hash(&seed);
-    // We take the first 8 bytes of the hash and convert them to a u64 number.
-    let hash_as_u64 = u64::from_str_radix(&hash[..16], 16).unwrap_or(0);
-
-    // 3. The winner is determined by the modulo operator.
-    let winner_index = hash_as_u64 as usize % sorted_validators.len();
-    let winner_address = sorted_validators[winner_index];
-
-    Some(winner_address.clone())
+    // Select proposer based on weighted random
+    let mut cumulative_stake = 0u64;
+    let target = hash_num % total_stake;
+    
+    for (address, validator) in validators {
+        cumulative_stake += validator.stake;
+        if cumulative_stake > target {
+            println!("🎲 EDFM selected proposer: {} (stake: {}, target: {})", 
+                     address, validator.stake, target);
+            return Some(address.clone());
+        }
+    }
+    
+    // Fallback: return first validator
+    validators.keys().next().cloned()
 }

@@ -1,7 +1,7 @@
 // src/p2p/message.rs
 
-use crate::core::block::Block;
 use serde::{Deserialize, Serialize};
+use crate::core::block::Block;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum P2pMessage {
@@ -15,6 +15,7 @@ pub enum P2pMessage {
         stake: u64,
     },
     ProposeBlock(Block),
+    NewBlock(Block),
     PreVote {
         block_hash: String,
     },

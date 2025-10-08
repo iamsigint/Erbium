@@ -1,21 +1,25 @@
 // src/storage/db.rs
 
-use rocksdb::{DB, Options};
 use crate::core::block::Block;
-use std::fmt;
+use crate::core::state::State;
+use rocksdb::{DB, Options};
+use std::fmt; // Import the fmt module
 
 const DB_PATH: &str = "./database";
-// A special key to store the hash of the last block in the chain.
 const TIP_KEY: &str = "tip";
+const STATE_KEY: &str = "state";
 
 pub struct Storage {
     db: Option<DB>,
 }
 
+// This manual implementation of Debug is now syntactically correct.
 impl fmt::Debug for Storage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let db_status = if self.db.is_some() { "Some(Connected)" } else { "None" };
-        f.debug_struct("Storage").field("db", &db_status).finish()
+        f.debug_struct("Storage")
+         .field("db", &db_status)
+         .finish()
     }
 }
 
@@ -35,44 +39,53 @@ impl Storage {
         }
     }
 
-    // Writes a block and updates the chain tip.
     pub fn write_block(&self, block: &Block) {
         if let Some(db) = &self.db {
             let block_hash = block.calculate_hash();
-            let block_json = serde_json::to_string(block).expect("Failed to serialize block.");
-            
-            // Write the block itself, using its hash as the key.
-            db.put(block_hash.as_bytes(), block_json.as_bytes()).expect("Failed to write block.");
-            // Also, update the 'tip' key to store the hash of this new last block.
-            db.put(TIP_KEY.as_bytes(), block_hash.as_bytes()).expect("Failed to write tip.");
+            let block_json = serde_json::to_string(block).unwrap();
+            db.put(block_hash.as_bytes(), block_json.as_bytes()).unwrap();
+            db.put(TIP_KEY.as_bytes(), block_hash.as_bytes()).unwrap();
         }
     }
 
-    // Reads a block from the database using its hash as the key.
     pub fn read_block(&self, hash: &str) -> Option<Block> {
         if let Some(db) = &self.db {
-            match db.get(hash.as_bytes()) {
-                Ok(Some(block_bytes)) => {
-                    let block_json = String::from_utf8(block_bytes).unwrap();
-                    let block: Block = serde_json::from_str(&block_json).unwrap();
-                    Some(block)
-                },
-                _ => None,
+            if let Ok(Some(bytes)) = db.get(hash.as_bytes()) {
+                if let Ok(json) = String::from_utf8(bytes) {
+                    return serde_json::from_str(&json).ok();
+                }
             }
-        } else {
-            None
         }
+        None
     }
     
-    // Gets the hash of the last block in the chain.
     pub fn get_tip_hash(&self) -> Option<String> {
         if let Some(db) = &self.db {
-            match db.get(TIP_KEY.as_bytes()) {
-                Ok(Some(tip_bytes)) => Some(String::from_utf8(tip_bytes).unwrap()),
-                _ => None,
+            if let Ok(Some(bytes)) = db.get(TIP_KEY.as_bytes()) {
+                return String::from_utf8(bytes).ok();
             }
-        } else {
-            None
         }
+        None
+    }
+
+    pub fn write_state(&self, state: &State) {
+        if let Some(db) = &self.db {
+            let state_json = serde_json::to_string(state).unwrap();
+            db.put(STATE_KEY.as_bytes(), state_json.as_bytes()).unwrap();
+            println!("DEBUG: Chain state has been persisted to disk.");
+        }
+    }
+
+    pub fn read_state(&self) -> Option<State> {
+        if let Some(db) = &self.db {
+            if let Ok(Some(bytes)) = db.get(STATE_KEY.as_bytes()) {
+                if let Ok(json) = String::from_utf8(bytes) {
+                    println!("DEBUG: Found and loaded chain state from disk.");
+                    return serde_json::from_str(&json).ok();
+                }
+            }
+        }
+        println!("DEBUG: No chain state found on disk. Creating a new one.");
+        None
     }
 }

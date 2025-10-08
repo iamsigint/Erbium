@@ -9,10 +9,12 @@ Erbium-node/
 │   │   ├── transaction.rs
 │   │   ├── chain.rs
 │   │   ├── state.rs
+│   │   ├── genesis.rs              ✅ NOVO
 │   │   └── consensus/
 │   │       ├── mod.rs
-│   │       ├── edfm.rs
-│   │       └── validator.rs
+│   │       ├── edfm.rs              ✅ ATUALIZADO
+│   │       ├── validator.rs         ✅ ATUALIZADO
+│   │       └── block_time.rs        ✅ NOVO
 │   ├── crypto/
 │   │   ├── mod.rs
 │   │   ├── keys.rs
@@ -30,16 +32,17 @@ Erbium-node/
 │   │   ├── executor.rs
 │   │   └── std_lib.rs
 │   ├── p2p/
-│   │   ├── mod.rs
+│   │   ├── mod.rs                   ✅ ATUALIZADO
 │   │   ├── peer.rs
-│   │   ├── message.rs
-│   │   ├── sync.rs
+│   │   ├── message.rs               ✅ ATUALIZADO
+│   │   ├── service.rs               ✅ ATUALIZADO
+│   │   ├── sync.rs                  ✅ NOVO
 │   │   └── discovery.rs
 │   ├── storage/
 │   │   ├── mod.rs
 │   │   ├── rocksdb.rs
 │   │   ├── memory.rs
-│   │   └── db.rs
+│   │   └── db.rs                    ✅ ATUALIZADO
 │   ├── rpc/
 │   │   ├── mod.rs
 │   │   ├── http.rs
@@ -48,7 +51,7 @@ Erbium-node/
 │   ├── node/
 │   │   ├── mod.rs
 │   │   ├── config.rs
-│   │   ├── runner.rs
+│   │   ├── runner.rs                ✅ ATUALIZADO
 │   │   └── telemetry.rs
 │   ├── tests/
 │   │   ├── test_consensus.rs
