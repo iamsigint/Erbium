@@ -21,15 +21,13 @@ impl State {
         }
     }
 
-    // --- NEW METHOD ---
-    // Adds or updates a validator in the state.
     pub fn register_validator(&mut self, address: String, stake: u64) {
         let validator_info = ValidatorInfo {
             address: address.clone(),
             stake,
         };
-        // The `insert` method will add the new validator or update it if it already exists.
         self.validators.insert(address, validator_info);
+        println!("DEBUG: Current validator set in State: {:?}", self.validators.keys());
         println!("State updated. Total validators: {}", self.validators.len());
     }
 }

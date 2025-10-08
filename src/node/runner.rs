@@ -1,40 +1,38 @@
 // src/node/runner.rs
 
-use crate::core::block::Block;
 use crate::core::chain::Blockchain;
+use crate::core::consensus::edfm;
+use crate::crypto::keys::KeyPair;
+use crate::node::config::Config;
 use crate::p2p::message::P2pMessage;
-use crate::p2p::service::P2pService;
+use crate::p2p::service::{connect_to_peers, listen_for_peers, PendingBlocks, PreCommits, PreVotes};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tokio::time::{interval, Duration};
-// THIS IS A NEW IMPORT to load the configuration file.
-use crate::node::config::Config;
 
-// The Sender side of our broadcast channel.
 pub type Tx = broadcast::Sender<P2pMessage>;
 
-// The block production loop now takes a Sender to announce new blocks.
-async fn block_producer_loop(blockchain: Arc<Mutex<Blockchain>>, sender: Tx) {
+async fn block_producer_loop(blockchain: Arc<Mutex<Blockchain>>, sender: Tx, node_address: String) {
     let mut interval = interval(Duration::from_secs(4));
     loop {
         interval.tick().await;
-        let mut chain = blockchain.lock().await;
-        
-        let last_block = chain.blocks.last().unwrap();
-        let new_block = Block::new(
-            last_block.header.block_number + 1,
-            last_block.calculate_hash(),
-            vec![],
-        );
-        
-        println!("\nProducing new block #{}...", new_block.header.block_number);
-        
-        let is_added = chain.add_block(new_block.clone());
-        
-        if is_added {
-            let message = P2pMessage::NewBlock(new_block);
-            if let Err(e) = sender.send(message) {
-                eprintln!("Failed to broadcast new block: {}", e);
+        let chain = blockchain.lock().await;
+        if !chain.state.validators.is_empty() {
+            let last_block = chain.blocks.last().unwrap();
+            let seed = last_block.calculate_hash();
+            if let Some(winner_address) = edfm::select_proposer(&seed, &chain.state.validators) {
+                drop(chain); // Release lock before potentially long operation
+                if winner_address == node_address {
+                    println!("\nIt's our turn! Proposing new block...");
+                    let chain = blockchain.lock().await;
+                    let last_block = chain.blocks.last().unwrap();
+                    let new_block =
+                        crate::core::block::Block::new(last_block.header.block_number + 1, last_block.calculate_hash(), vec![]);
+                    if sender.send(P2pMessage::ProposeBlock(new_block)).is_err() {
+                        eprintln!("Failed to broadcast block proposal");
+                    }
+                }
             }
         }
     }
@@ -43,34 +41,47 @@ async fn block_producer_loop(blockchain: Arc<Mutex<Blockchain>>, sender: Tx) {
 pub struct Node {
     blockchain: Arc<Mutex<Blockchain>>,
     broadcast_tx: Tx,
+    keypair: KeyPair,
+    pending_blocks: PendingBlocks,
+    pre_votes: PreVotes,
+    pre_commits: PreCommits,
 }
 
 impl Node {
     pub fn new() -> Self {
-        let blockchain = Arc::new(Mutex::new(Blockchain::new()));
-        let (tx, _) = broadcast::channel(16);
+        let keypair = KeyPair::new();
         Self {
-            blockchain,
-            broadcast_tx: tx,
+            blockchain: Arc::new(Mutex::new(Blockchain::new())),
+            broadcast_tx: broadcast::channel(32).0,
+            keypair,
+            pending_blocks: Arc::new(Mutex::new(HashMap::new())),
+            pre_votes: Arc::new(Mutex::new(HashMap::new())),
+            pre_commits: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    // THIS FUNCTION IS THE UPDATED ONE.
     pub async fn run(&self) {
-        println!("Node is starting up...");
-        
-        // Load the network configuration from the .toml file.
+        println!("--- Initializing Erbium Node ---");
+        println!("My Node ID (Address): {}", self.keypair.get_address());
         let config = Config::load();
         
-        let p2p_service = P2pService::new(
-            Arc::clone(&self.blockchain),
-            self.broadcast_tx.clone(),
+        let producer_task = block_producer_loop(
+            Arc::clone(&self.blockchain), self.broadcast_tx.clone(), self.keypair.get_address(),
+        );
+
+        let listen_task = listen_for_peers(
+            config.listen_address,
+            Arc::clone(&self.blockchain), self.broadcast_tx.clone(),
+            Arc::clone(&self.pending_blocks), Arc::clone(&self.pre_votes),
+            Arc::clone(&self.pre_commits),
+        );
+
+        let connect_task = connect_to_peers(
+            config.bootstrap_nodes, Arc::clone(&self.blockchain), self.broadcast_tx.clone(),
+            Arc::clone(&self.pending_blocks), Arc::clone(&self.pre_votes),
+            Arc::clone(&self.pre_commits),
         );
         
-        tokio::join!(
-            // Pass the list of bootstrap nodes to the P2P service's run method.
-            p2p_service.run(config.bootstrap_nodes),
-            block_producer_loop(Arc::clone(&self.blockchain), self.broadcast_tx.clone())
-        );
+        tokio::join!(producer_task, listen_task, connect_task);
     }
 }

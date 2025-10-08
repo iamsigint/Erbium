@@ -1,8 +1,11 @@
 // src/p2p/service.rs
 
+use crate::core::block::Block;
 use crate::core::chain::Blockchain;
+use crate::core::consensus::validator;
 use crate::node::runner::Tx;
 use crate::p2p::message::P2pMessage;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -10,166 +13,177 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::select;
 use tokio::sync::{broadcast, Mutex};
 
+pub type PendingBlocks = Arc<Mutex<HashMap<String, Block>>>;
+pub type PreVotes = Arc<Mutex<HashMap<String, HashSet<String>>>>;
+pub type PreCommits = Arc<Mutex<HashMap<String, HashSet<String>>>>;
+
 async fn handle_peer(
     socket: TcpStream,
     addr: SocketAddr,
     blockchain: Arc<Mutex<Blockchain>>,
+    broadcast_tx: Tx,
     mut broadcast_rx: broadcast::Receiver<P2pMessage>,
+    pending_blocks: PendingBlocks,
+    pre_votes: PreVotes,
+    pre_commits: PreCommits,
 ) {
-    println!("Handling peer: {}", addr);
+    println!("[{}] Handling new peer connection.", addr);
     let (reader, mut writer) = socket.into_split();
     let mut buf_reader = BufReader::new(reader);
     let mut line = String::new();
 
-    // --- HANDSHAKE LOGIC: SEND OUR STATUS FIRST ---
+    // Handshake
     {
         let bc = blockchain.lock().await;
         let our_block_number = bc.blocks.last().unwrap().header.block_number;
-        let status_msg = P2pMessage::Status {
-            block_number: our_block_number,
-        };
-        let status_json = serde_json::to_string(&status_msg).unwrap();
-
-        writer.write_all(status_json.as_bytes()).await.unwrap();
-        writer.write_all(b"\n").await.unwrap();
-        println!(
-            "Sent status (block #{}) to peer {}",
-            our_block_number, addr
-        );
+        let status_msg = P2pMessage::Status { block_number: our_block_number };
+        if let Ok(json) = serde_json::to_string(&status_msg) {
+            let _ = writer.write_all(json.as_bytes()).await;
+            let _ = writer.write_all(b"\n").await;
+        }
     }
 
     loop {
         select! {
-            // Branch 1: A message arrived FROM the connected peer.
             result = buf_reader.read_line(&mut line) => {
-                match result {
-                    Ok(0) => { println!("Peer {} disconnected.", addr); break; }
-                    Ok(_) => {
-                        let received_message: Result<P2pMessage, _> = serde_json::from_str(&line);
-                        
-                        match received_message {
-                            Ok(P2pMessage::Status { block_number: peer_block_number }) => {
-                                let bc = blockchain.lock().await;
-                                let our_block_number = bc.blocks.last().unwrap().header.block_number;
-                                drop(bc); // Release lock before writing
-
-                                println!("Received status from {}: their block #{}, our block #{}", addr, peer_block_number, our_block_number);
-
-                                if peer_block_number > our_block_number {
-                                    println!("We are behind! Peer {} is ahead. Requesting chain...", addr);
-                                    let request_msg = P2pMessage::RequestChain;
-                                    let request_json = serde_json::to_string(&request_msg).unwrap();
-                                    writer.write_all(request_json.as_bytes()).await.unwrap();
-                                    writer.write_all(b"\n").await.unwrap();
-                                } else {
-                                    println!("We are ahead or synced with peer {}.", addr);
+                if result.is_err() || result.unwrap_or(0) == 0 { break; }
+                
+                // Trim the line to remove newline characters before parsing
+                if let Ok(msg) = serde_json::from_str::<P2pMessage>(line.trim()) {
+                    match msg {
+                        P2pMessage::Status { block_number } => {
+                            let bc = blockchain.lock().await;
+                            if block_number > bc.blocks.last().unwrap().header.block_number {
+                                let request = P2pMessage::RequestChain;
+                                if let Ok(json) = serde_json::to_string(&request) {
+                                    let _ = writer.write_all(json.as_bytes()).await;
+                                    let _ = writer.write_all(b"\n").await;
                                 }
                             }
-                            Ok(P2pMessage::RespondChain(blocks_to_sync)) => {
-                                println!("Received a chain response with {} blocks from peer {}.", blocks_to_sync.len(), addr);
-                                let mut bc = blockchain.lock().await;
-                                let our_last_block = bc.blocks.last().unwrap();
-                                
-                                if !blocks_to_sync.is_empty() && blocks_to_sync.last().unwrap().header.block_number > our_last_block.header.block_number {
-                                    println!("Their chain is longer. Verifying and replacing our chain.");
-                                    bc.blocks = blocks_to_sync;
-                                    println!("Chain synchronized. We are now at block #{}.", bc.blocks.last().unwrap().header.block_number);
-                                } else {
-                                    println!("Their chain is not longer than ours. Ignoring.");
-                                }
-                            }
-                            Ok(P2pMessage::NewBlock(block)) => {
-                                println!("Received a new block (#{}) from peer {}.", block.header.block_number, addr);
-                                let mut bc = blockchain.lock().await;
-                                bc.add_block(block);
-                            }
-                            Ok(P2pMessage::RequestChain) => {
-                                println!("Peer {} requested the blockchain.", addr);
-                                let bc = blockchain.lock().await;
-                                let response = P2pMessage::RespondChain(bc.blocks.clone());
-                                let response_json = serde_json::to_string(&response).unwrap();
-                                writer.write_all(response_json.as_bytes()).await.unwrap();
-                                writer.write_all(b"\n").await.unwrap();
-                            }
-                            _ => {} // Ignore other messages for now
                         }
-                        line.clear();
+                        P2pMessage::RequestChain => {
+                            let bc = blockchain.lock().await;
+                            let response = P2pMessage::RespondChain(bc.blocks.clone());
+                            if let Ok(json) = serde_json::to_string(&response) {
+                                let _ = writer.write_all(json.as_bytes()).await;
+                                let _ = writer.write_all(b"\n").await;
+                            }
+                        }
+                        P2pMessage::RespondChain(blocks) => {
+                            let mut bc = blockchain.lock().await;
+                            if !blocks.is_empty() && blocks.last().unwrap().header.block_number > bc.blocks.last().unwrap().header.block_number {
+                                bc.blocks = blocks;
+                            }
+                        }
+                        P2pMessage::RegisterValidator { address, stake } => {
+                            let mut bc = blockchain.lock().await;
+                            if !bc.state.validators.contains_key(&address) {
+                                bc.state.register_validator(address.clone(), stake);
+                                if broadcast_tx.send(P2pMessage::RegisterValidator { address, stake }).is_err() {}
+                            }
+                        }
+                        P2pMessage::ProposeBlock(block) => {
+                            let bc = blockchain.lock().await;
+                            if validator::validate_block(&block, bc.blocks.last().unwrap()) {
+                                let block_hash = block.calculate_hash();
+                                pending_blocks.lock().await.insert(block_hash.clone(), block);
+                                if broadcast_tx.send(P2pMessage::PreVote { block_hash }).is_err() {}
+                            }
+                        }
+                        P2pMessage::PreVote { block_hash } => {
+                            let mut votes = pre_votes.lock().await;
+                            if let Some(entry) = votes.get_mut(&block_hash) {
+                                if entry.insert(addr.to_string()) {
+                                    println!("[{}] Received NEW PreVote for {}. Total: {}", addr, &block_hash[..8], entry.len());
+                                }
+                            } else {
+                                let mut new_set = HashSet::new();
+                                new_set.insert(addr.to_string());
+                                votes.insert(block_hash.clone(), new_set);
+                                println!("[{}] Received FIRST PreVote for {}. Total: 1", addr, &block_hash[..8]);
+                            }
+
+                            let total_validators = blockchain.lock().await.state.validators.len();
+                            let threshold = (total_validators * 2 / 3) + 1;
+                            if votes.get(&block_hash).unwrap().len() >= threshold {
+                                if broadcast_tx.send(P2pMessage::PreCommit { block_hash }).is_err() {}
+                            }
+                        }
+                        P2pMessage::PreCommit { block_hash } => {
+                            let mut commits = pre_commits.lock().await;
+                            if let Some(entry) = commits.get_mut(&block_hash) {
+                                if entry.insert(addr.to_string()) {
+                                    println!("[{}] Received NEW PreCommit for {}. Total: {}", addr, &block_hash[..8], entry.len());
+                                }
+                            } else {
+                                let mut new_set = HashSet::new();
+                                new_set.insert(addr.to_string());
+                                commits.insert(block_hash.clone(), new_set);
+                                println!("[{}] Received FIRST PreCommit for {}. Total: 1", addr, &block_hash[..8]);
+                            }
+
+                            let total_validators = blockchain.lock().await.state.validators.len();
+                            let threshold = (total_validators * 2 / 3) + 1;
+                            if commits.get(&block_hash).unwrap().len() >= threshold {
+                                println!("FINALIZING BLOCK {}", &block_hash[..8]);
+                                let mut bc = blockchain.lock().await;
+                                if let Some(block) = pending_blocks.lock().await.remove(&block_hash) {
+                                    bc.add_block(block);
+                                }
+                            }
+                        }
                     }
-                    Err(e) => { eprintln!("Error reading from socket: {}", e); break; }
+                }
+                line.clear();
+            },
+            Ok(msg) = broadcast_rx.recv() => {
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    let _ = writer.write_all(json.as_bytes()).await;
+                    let _ = writer.write_all(b"\n").await;
                 }
             }
-            // Branch 2: A message arrived FROM our node's broadcast channel (to be sent TO the peer).
-            Ok(message) = broadcast_rx.recv() => {
-                let message_json = serde_json::to_string(&message).unwrap();
-                writer.write_all(message_json.as_bytes()).await.unwrap();
-                writer.write_all(b"\n").await.unwrap();
-            }
         }
     }
+    println!("[{}] Peer disconnected.", addr);
 }
 
-
-pub struct P2pService {
+pub async fn listen_for_peers(
+    address: String,
     blockchain: Arc<Mutex<Blockchain>>,
     broadcast_tx: Tx,
-}
-
-impl P2pService {
-    pub fn new(blockchain: Arc<Mutex<Blockchain>>, broadcast_tx: Tx) -> Self {
-        Self {
-            blockchain,
-            broadcast_tx,
-        }
-    }
-
-    pub async fn run(&self, bootstrap_nodes: Vec<String>) {
-        let listener_address = "127.0.0.1:8008";
-
-        let listen_task = tokio::spawn(listen_for_peers(
-            listener_address.to_string(),
-            Arc::clone(&self.blockchain),
-            self.broadcast_tx.clone(),
-        ));
-
-        let connect_task = tokio::spawn(connect_to_peers(
-            bootstrap_nodes,
-            Arc::clone(&self.blockchain),
-            self.broadcast_tx.clone(),
-        ));
-
-        let _ = tokio::try_join!(listen_task, connect_task);
-    }
-}
-
-async fn listen_for_peers(address: String, blockchain: Arc<Mutex<Blockchain>>, broadcast_tx: Tx) {
+    pending_blocks: PendingBlocks,
+    pre_votes: PreVotes,
+    pre_commits: PreCommits,
+) {
     let listener = TcpListener::bind(&address).await.expect("Failed to bind to address");
     println!("P2P service listening on: {}", address);
     loop {
         if let Ok((socket, addr)) = listener.accept().await {
-            println!("New peer connected via listener: {}", addr);
             tokio::spawn(handle_peer(
-                socket,
-                addr,
-                Arc::clone(&blockchain),
-                broadcast_tx.subscribe(),
+                socket, addr, Arc::clone(&blockchain), broadcast_tx.clone(),
+                broadcast_tx.subscribe(), Arc::clone(&pending_blocks),
+                Arc::clone(&pre_votes), Arc::clone(&pre_commits),
             ));
         }
     }
 }
 
-async fn connect_to_peers(nodes: Vec<String>, blockchain: Arc<Mutex<Blockchain>>, broadcast_tx: Tx) {
+pub async fn connect_to_peers(
+    nodes: Vec<String>,
+    blockchain: Arc<Mutex<Blockchain>>,
+    broadcast_tx: Tx,
+    pending_blocks: PendingBlocks,
+    pre_votes: PreVotes,
+    pre_commits: PreCommits,
+) {
     for node_addr in nodes {
         if let Ok(socket) = TcpStream::connect(&node_addr).await {
             let addr = socket.peer_addr().unwrap();
-            println!("Successfully connected to bootstrap node: {}", addr);
             tokio::spawn(handle_peer(
-                socket,
-                addr,
-                Arc::clone(&blockchain),
-                broadcast_tx.subscribe(),
+                socket, addr, Arc::clone(&blockchain), broadcast_tx.clone(),
+                broadcast_tx.subscribe(), Arc::clone(&pending_blocks),
+                Arc::clone(&pre_votes), Arc::clone(&pre_commits),
             ));
-        } else {
-            eprintln!("Failed to connect to bootstrap node {}", node_addr);
         }
     }
 }
